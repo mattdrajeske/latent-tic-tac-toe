@@ -3,6 +3,9 @@ from labml import monit, tracker, logger, experiment
 from labml.configs import BaseConfigs, option
 from itertools import permutations
 from labml import experiment
+import numpy as np
+# from labml_nn.cfr.infoset_save import InfoSetSaver
+# from labml_nn.cfr import History as _History, InfoSet as _InfoSet, Action, Player, CFRConfigs
 
 Player = NewType('Player', int)
 Action = NewType('Action', str)
@@ -74,11 +77,13 @@ class History:
 		# All spaces are taken, resulting in a tie
 		moves = []
 		for e in p1_moves:
-			moves.append(e)
+			if e != '9':
+				moves.append(e)
 		for e in p2_moves:
-			moves.append(e)
+			if e != '9':
+				moves.append(e)
 		if DRAW_CON in list(permutations(moves, 9)):
-			print("DRAW")
+			# print("DRAW")
 			return True
 			
 	def _terminal_utility_p1(self) -> float:
@@ -149,20 +154,6 @@ class InfoSet:
 	@staticmethod
 	def from_dict(data: Dict[str, any]) -> 'InfoSet':
 		pass
-
-	# # Save the information set to a dictionary
-	# def to_dict(self):
-	# 	return {
-	# 		'key': self.key,
-	# 		'regret': self.regret,
-	# 		'average_strategy': self.cumulative_strategy		
-	# 	}
-
-	# # Load data from a saved dictionary
-	# def load_dict(self, data: Dict[str, any]):
-	# 	self.regret = data['regret']
-	# 	self.cumulative_strategy = data['average_strategy']
-	# 	self.calculate_strategy()
 
 	# Calculate current strategy using regret matching
 	def calculate_strategy(self):
@@ -250,46 +241,83 @@ class CFR:
 
 		logger.inspect(self.info_sets)
 
-class InfoSetTracker:
-	def __init__(self):
-		tracker.set_histogram(f'strategy.*')
-		tracker.set_historgram(f'average_strategy.*')
-		tracker.set_histogram(f'regret.*')
+# class InfoSetTracker:
+# 	def __init__(self):
+# 		tracker.set_histogram(f'strategy.*')
+# 		tracker.set_historgram(f'average_strategy.*')
+# 		tracker.set_histogram(f'regret.*')
 
-	def __call__(self, info_sets: Dict[str, InfoSet]):
-		for I in info_sets.values():
-			avg_strategy = I.get_average_strategy()
-			for a in I.actions():
-				tracker.add({
-					f'strategy.{I.key}.{a}': I.strategy[a],
-					f'average_strategy.{I.key}.{a}': avg_strategy[a],
-					f'regret.{I.key}.{a}': I.regret[a],
-				})
+# 	def __call__(self, info_sets: Dict[str, InfoSet]):
+# 		for I in info_sets.values():
+# 			avg_strategy = I.get_average_strategy()
+# 			for a in I.actions():
+# 				tracker.add({
+# 					f'strategy.{I.key}.{a}': I.strategy[a],
+# 					f'average_strategy.{I.key}.{a}': avg_strategy[a],
+# 					f'regret.{I.key}.{a}': I.regret[a],
+# 				})
 
-class CFRConfigs(BaseConfigs):
-	create_new_history: Callable[[], History]
-	epochs: int = 1_00_000
-	cfr: CFR = 'simple_cfr'
+# class CFRConfigs(BaseConfigs):
+# 	create_new_history: Callable[[], History]
+# 	epochs: int = 1_00_000
+# 	cfr: CFR = 'simple_cfr'
 
-@option(CFRConfigs.cfr)
-def simple_cfr(c: CFRConfigs):
-	return CFR(create_new_history = c.create_new_history,
-			   epochs = c.epochs)
+# @option(CFRConfigs.cfr)
+# def simple_cfr(c: CFRConfigs):
+# 	return CFR(create_new_history = c.create_new_history,
+# 			   epochs = c.epochs)
 
-class Configs(CFRConfigs):
-	pass
+# class Configs(CFRConfigs):
+# 	pass
 
-@option(Configs.create_new_history)
-def _cnh():
-	return create_new_history
+# @option(Configs.create_new_history)
+# def _cnh():
+# 	return create_new_history
+
+def run_lttt():
+	hist = create_new_history()
+	taken_spaces = []
+	board = ['-', '-', '-', '-', '-', '-', '-', '-', '-']
+
+	while not hist.is_terminal():
+		# If player 1 is moving (X)
+		if len(hist.history) % 2 == 0:
+			# TODO: Fix logic on how to decide what move to make
+			move = np.random.randint(9)
+			if move != 9 and move not in taken_spaces:
+				board[move] = 'X'
+				taken_spaces.append(move)
+				hist.history = f'{hist.history}{move}'
+			elif move in taken_spaces:
+				hist.history = f'{hist.history}9'
+		# If player 2 is moving (O)
+		else:
+			# TODO: Fix logic on how to decide what move to make
+			move = np.random.randint(9)
+			if move != 9 and move not in taken_spaces:
+				board[move] = 'O'
+				taken_spaces.append(move)
+				hist.history = f'{hist.history}{move}'
+			elif move in taken_spaces:
+				hist.history = f'{hist.history}9'
+		print(hist.history)
+	draw_board(board)
+	return hist
+
+def draw_board(board):
+	for i in range(len(board)):
+		if i == 0 or i == 3 or i == 6:
+			print(f'{board[i]}\t|\t{board[i+1]}\t|\t{board[i+2]}\n')
+		
+	# for i in board:
+	# 	print(i)
+
+# def display_board(board):
+# 	for int i 
+
 
 if __name__ == "__main__":
-	# test_hist = History('0199')
-	# utilities = (test_hist.terminal_utility(1), test_hist.terminal_utility(2))
-	# print(utilities)
-	experiment.create(name='lttt', writers={'sqlite'})
-	conf = Configs()
-	experiment.configs(conf)
-	experiment.add_model_savers({'info_sets': InfoSetSaver(conf.cfr.info_sets)})
-	with experiment.start():
-		conf.cfr.iterate()
+	test_hist = run_lttt()
+	utilities = (test_hist.terminal_utility(1), test_hist.terminal_utility(2))
+	print(utilities)
+	
